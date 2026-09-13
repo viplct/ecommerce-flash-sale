@@ -37,6 +37,25 @@ convert-vs-reap). The per-user cap needs identity (account / verified phone) to 
 and must be paired with rate limiting and bot filtering, since a cap alone is beaten by many
 fake accounts.
 
+## Defense in depth against Sybil attacks
+
+A per-account cap assumes one person = one account; a bot creates thousands of free fake
+accounts (a Sybil attack) and walks around it. No single control wins, so stack layers that
+each spend a *different scarce* bot resource. Measured scalper share of 100 units, cumulative:
+
+```
+no defense              94%      + payment/card cap      15%
++ per-user cap          94%      + account-age gate       0%  (but 25 real first-timers blocked)
++ datacenter/ASN block  69%
+```
+
+Anchor on resources bots can't cheaply mass-produce — **cards, phone numbers, aged accounts,
+non-datacenter IPs**. Each layer has a cost or a gap: IP caps false-positive on CGNAT (use IP
+for rate-limiting and datacenter/proxy blocking, not a hard purchase cap); an account-age gate
+also excludes genuine first-time buyers; CAPTCHA can be farmed. It is an economics game — raise
+the attacker's cost above their expected profit — plus post-hoc fraud scoring to cancel and
+refund suspicious orders after the fact.
+
 ## Notes
 
 The TTL/reclaim is the seat-hold reaper from `high-demand-ticketing`, applied at the order

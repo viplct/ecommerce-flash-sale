@@ -32,6 +32,7 @@ Requires only Python 3.10+.
 make funnel    # reserve-at-cart vs deduct-at-checkout as abandonment rises
 make timeout   # pending-order payment TTL reclaims stock from non-payers
 make limit     # per-user cap stops scalpers hoarding the drop
+make sybil     # why a per-user cap alone fails, and defense in depth
 ```
 
 ## The two ways to hold inventory
@@ -115,8 +116,36 @@ stateDiagram-v2
 
 With no cap, stock goes to whoever sends the most requests — 20 scalpers scoop **83%** and
 only ~36 people are served. A **one-per-account cap** drops the scalper share to **20%** and
-spreads the drop across all **100 unique buyers**. (It's the inventory-side half; pair it
-with authentication, rate limits, and bot filtering.)
+spreads the drop across all **100 unique buyers**. But a cap on *accounts* is only as strong
+as account identity — which is where the next test comes in.
+
+## 4. A cap on users isn't a cap on bots — defense in depth (`make sybil`)
+
+A per-account cap assumes one person = one account. A bot creates thousands of free fake
+accounts (a **Sybil attack**), so the cap barely dents it. No single control wins; you stack
+layers that each spend a *different scarce resource* the bot must have. Scalper share of 100
+units as each layer is added (bot: unlimited fake accounts, 15 real cards, 85% datacenter IPs):
+
+```
+  defense (cumulative)        to scalpers  to genuine  real buyers blocked
+  ------------------------------------------------------------------------
+  no defense                       94 (94%)           6                    0
+  + per-user cap                   94 (94%)           6                    0
+  + datacenter/ASN block           69 (69%)          31                    0
+  + payment/card cap               15 (15%)          85                    0
+  + account-age gate                0 ( 0%)         100                   25
+```
+
+- **per-user cap alone ≈ no defense** — fake accounts are free, so 94% still goes to the bot.
+- **datacenter/ASN block** — real buyers aren't on cloud/proxy IPs; cuts most bot traffic (94→69%).
+- **payment/card cap** (one purchase per card) — real cards are expensive, so this pins the bot
+  to its ~15 cards (69→15%). The cheapest decisive layer.
+- **account-age gate** — Sybil accounts are brand new, so blocking new accounts stops them cold
+  (→0%) — **but it also locks out 25 real first-time buyers**. A trade-off, not a free win.
+
+The lesson: **anchor on resources bots can't cheaply mass-produce** (cards, phone numbers,
+aged accounts, non-datacenter IPs), stack the layers, and accept that each has a cost or a
+gap. It's an economics game — raise the attacker's cost above their expected profit.
 
 ## What carries over from ticketing (not re-measured here)
 
@@ -138,6 +167,7 @@ decision, not a correctness one.
 sim/cart_vs_checkout.py       reserve-at-cart vs deduct-at-checkout funnel
 sim/pending_order_timeout.py  payment TTL reclaims stock from non-payers
 sim/per_user_limit.py         per-user cap vs scalper hoarding
+sim/sybil_defense.py          layered anti-bot defense vs a Sybil (fake-account) attack
 docs/architecture.md          walkthrough
 docs/adr/                     decision records
 ```
